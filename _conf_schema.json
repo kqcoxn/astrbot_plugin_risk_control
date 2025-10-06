@@ -1,0 +1,32 @@
+{
+    "white_groups": {
+        "description": "白名单",
+        "type": "list",
+        "hint": "填写需要风控的群号，如: [123456, 789012]",
+        "default": []
+    },
+    "l1_threshold": {
+        "description": "二级分析阈值",
+        "type": "float",
+        "hint": "进行二级分析所需的最小一级分析（敏感词库）系数 (0~1)",
+        "default": 0.1
+    },
+    "llm_id": {
+        "description": "二级分析模型",
+        "type": "string",
+        "hint": "用于二级风控分析的大模型 ID，留空表示不进行二级分析，直接使用是否超过阈值作为风控决策",
+        "default": ""
+    },
+    "l2_threshold": {
+        "description": "风控阈值",
+        "type": "float",
+        "hint": "进行风控所需的最小二级分析（大模型）系数 (0~1)",
+        "default": 0.5
+    },
+    "dev": {
+        "description": "开发者模式",
+        "type": "bool",
+        "hint": "输出更详细的日志信息",
+        "default": false
+    }
+}
