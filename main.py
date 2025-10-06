@@ -1,6 +1,9 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
+    AiocqhttpMessageEvent,
+)
 
 import time
 
@@ -34,9 +37,15 @@ class RiskControl(Star):
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-    async def rc_handler(self, event: AstrMessageEvent):
+    async def rc_handler(self, event: AiocqhttpMessageEvent):
         """风控检测"""
         try:
+            # 群组白名单
+            group_id = event.get_group_id()
+            if group_id not in self.white_groups:
+                return
+
+            # 获取消息
             message_str = event.message_str
             if not message_str:
                 return
@@ -55,10 +64,11 @@ class RiskControl(Star):
 
             # 直接使用一级风控
             if not self.llm_id:
-                if self.is_dev:
-                    logger.info(
-                        f"触发风控 (l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_diff:.4f}s)"
-                    )
+                async for _result in rc.treat(event):
+                    yield _result
+                logger.info(
+                    f"触发风控 (l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_diff:.4f}s)"
+                )
                 return
 
             # 初始化llm模型
@@ -75,8 +85,8 @@ class RiskControl(Star):
             l2_coefficient = float(llm_resp.completion_text)
             l2_diff = time.time() - start_time
 
-            # 触发风控
-            if l2_coefficient >= self.l2_threshold:
+            # 未触发风控
+            if l2_coefficient < self.l2_threshold:
                 if self.is_dev:
                     logger.info(
                         "\n".join(
@@ -91,20 +101,22 @@ class RiskControl(Star):
                         )
                     )
                 return
+            # 触发风控
             else:
-                if self.is_dev:
-                    logger.info(
-                        "\n".join(
-                            [
-                                "触发风控！",
-                                "——————————",
-                                f"原文：{message_str}",
-                                f"  - l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_diff:.4f}s",
-                                f"  - l2风控系数：{l2_coefficient:.2f}, 模型耗时：{l2_diff:.4f}s",
-                                "——————————",
-                            ]
-                        )
+                async for _result in rc.treat(event):
+                    yield _result
+                logger.info(
+                    "\n".join(
+                        [
+                            "触发风控！",
+                            "——————————",
+                            f"原文：{message_str}",
+                            f"  - l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_diff:.4f}s",
+                            f"  - l2风控系数：{l2_coefficient:.2f}, 模型耗时：{l2_diff:.4f}s",
+                            "——————————",
+                        ]
                     )
+                )
                 return
 
         except Exception as e:

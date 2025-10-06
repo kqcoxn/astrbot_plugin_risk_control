@@ -1,6 +1,10 @@
 import os
 from typing import Set, List
 
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
+    AiocqhttpMessageEvent,
+)
+
 
 class RC:
     def __init__(self):
@@ -42,6 +46,34 @@ class RC:
                 "- 输出：恶意程度，范围为0-1，0表示无恶意，1表示完全恶意。仅返回最多两位小数的浮点数即可，不要返回其他分析。",
             ]
         )
+
+    async def treat(self, event: AiocqhttpMessageEvent):
+        """风控处理"""
+        client = event.bot
+        group_id = int(event.get_group_id())
+        user_id = int(event.get_sender_id())
+        self_id = int(event.get_self_id())
+        message_id = int(event.message_obj.message_id)
+
+        # 撤回
+        await client.delete_msg(
+            message_id=message_id,
+            self_id=self_id,
+        )
+
+        # 禁言
+        await client.set_group_ban(
+            group_id=group_id,
+            user_id=user_id,
+            duration=10 * 60,
+            self_id=self_id,
+        )
+
+        # 提示
+        yield event.plain_result(
+            "检测到可能的违规内容，发言请遵守网络道德！\n（若误判请联系群风纪委员处理）"
+        )
+        event.stop_event()
 
     def get_rc_coefficient(self, message: str) -> float:
         """
