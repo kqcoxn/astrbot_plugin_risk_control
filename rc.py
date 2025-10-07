@@ -1,6 +1,8 @@
 from typing import List
 from pathlib import Path
-
+from typing import List
+from dataclasses import dataclass
+import json
 
 from astrbot.api import logger
 from astrbot.api.star import Context
@@ -10,6 +12,15 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 
 from .config import Config
 from .utils import Timer
+
+
+@dataclass
+class L3Result:
+    """L3风控分析结果"""
+
+    coefficient: float
+    reason: str
+    time: float
 
 
 class _RC:
@@ -89,8 +100,8 @@ class _RC:
             return
 
         # 三级风控分析
-        l3_coefficient, l3_time = await self.get_l3_coefficient(message)
-        if l3_coefficient < self.config.l3_threshold:
+        l3_result = await self.get_l3_result(message)
+        if l3_result.coefficient < self.config.l3_threshold:
             if self.config.is_dev:
                 logger.info(
                     "\n".join(
@@ -100,7 +111,7 @@ class _RC:
                             f"原文：{message}",
                             f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
                             f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
-                            f"  - 风控分析系数(L3)：{l3_coefficient:.2f}, 模型耗时：{l3_time:.4f}s",
+                            f"  - 风控分析系数(L3)：{l3_result.coefficient:.2f}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
                             "——————————",
                         ]
                     )
@@ -109,7 +120,7 @@ class _RC:
 
         # 触发风控
         else:
-            async for _yield in self.treat(event):
+            async for _yield in self.treat(event, l3_result.reason):
                 yield _yield
             logger.warning(
                 "\n".join(
@@ -119,7 +130,7 @@ class _RC:
                         f"原文：{message}",
                         f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
                         f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
-                        f"  - 风控分析系数(L3)：{l3_coefficient:.2f}, 模型耗时：{l3_time:.4f}s",
+                        f"  - 风控分析系数(L3)：{l3_result.coefficient:.2f}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
                         "——————————",
                     ]
                 )
@@ -261,7 +272,7 @@ class _RC:
         else:
             raise ValueError(f"意料外的风控分析结果：{llm_resp}")
 
-    async def get_l3_coefficient(self, message: str) -> tuple[float, float]:
+    async def get_l3_result(self, message: str) -> L3Result:
         """
         计算l3风控系数
 
@@ -279,18 +290,19 @@ class _RC:
         llm_resp = await prov.text_chat(prompt=f"{self.l3_llm_prompt}{message}")
         llm_resp = llm_resp.completion_text
         if self.config.llm_rc_rt in llm_resp:
-            return 1.0, timer.end()
+            return L3Result(1.0, "含有敏感言论", timer.end())
         try:
-            llm_resp = float(llm_resp)
-            return llm_resp, timer.end()
+            llm_resp = json.loads(llm_resp)
+            return L3Result(llm_resp.get("score"), llm_resp.get("reason"), timer.end())
         except Exception as e:
             raise ValueError(f"意料外的风控分析结果：{llm_resp}\n错误信息：{e}")
 
-    async def treat(self, event: AiocqhttpMessageEvent):
+    async def treat(self, event: AiocqhttpMessageEvent, reason: str = None):
         """
         风控处理
 
         :param event: 消息事件
+        :param reason: 风险原因
         """
         client = event.bot
         group_id = int(event.get_group_id())
@@ -313,7 +325,10 @@ class _RC:
         # )
 
         # 提示
-        yield event.plain_result(self.config.alert)
+        alert = self.config.alert
+        if reason:
+            alert += f"\n原因：{reason}"
+        yield event.plain_result(alert)
         event.stop_event()
 
 

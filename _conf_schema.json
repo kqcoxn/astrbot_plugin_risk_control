@@ -33,10 +33,10 @@
         "description": "风控阈值",
         "type": "float",
         "hint": "进行风控所需的最风控分析阈值 (0~1)",
-        "default": 0.5
+        "default": 0.4
     },
     "llm_rc_rt": {
-        "description": "大模型风控返回",
+        "description": "大模型风控标识",
         "type": "string",
         "hint": "国产大模型自身检测到敏感词后会返回 Bad Request，若检测到相关字段则直接判别为需要风控",
         "default": "contain inappropriate content"
