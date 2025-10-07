@@ -305,17 +305,15 @@ class _RC:
         )
 
         # 禁言
-        await client.set_group_ban(
-            group_id=group_id,
-            user_id=user_id,
-            duration=10 * 60,
-            self_id=self_id,
-        )
+        # await client.set_group_ban(
+        #     group_id=group_id,
+        #     user_id=user_id,
+        #     duration=10 * 60,
+        #     self_id=self_id,
+        # )
 
         # 提示
-        yield event.plain_result(
-            "检测到可能的违规内容，发言请遵守网络道德！\n（若误判请联系群风纪委员处理）"
-        )
+        yield event.plain_result(self.config.alert)
         event.stop_event()
 
 
