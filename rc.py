@@ -2,7 +2,7 @@ from typing import List
 
 
 from astrbot.api import logger
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
@@ -15,6 +15,9 @@ class _RC:
     def __init__(self):
         # 加载违禁词
         self.load_stop_words("keyword/keywords.txt")
+        # 加载提示词
+        self.l2_llm_prompt = self.load_prompt("prompts/l2.txt")
+        self.l3_llm_prompt = self.load_prompt("prompts/l3.txt")
 
     def set_bot_params(self, context: Context = None, config: Config = None):
         """Bot 配置"""
@@ -25,16 +28,16 @@ class _RC:
 
     async def handle(self, event: AiocqhttpMessageEvent):
         # 获取消息
-        message_str = event.message_str
-        if not message_str:
+        message = event.message_str.strip()
+        if not message:
             return
 
         # 计算大模型判别系数
-        l1_coefficient, l1_time = self.get_l1_coefficient(message_str)
+        l1_coefficient, l1_time = self.get_l1_coefficient(message)
         if l1_coefficient < self.config.l1_threshold:
             if self.config.is_dev:
                 logger.info(
-                    f"未触发风控 (l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s)"
+                    f"未触发风控 (敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s)"
                 )
             return
 
@@ -43,52 +46,76 @@ class _RC:
             async for _yield in self.treat(event):
                 yield _yield
             logger.info(
-                f"触发风控 (l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s)"
+                f"触发风控 (敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s)"
             )
             return
 
-        # 初始化llm模型
-        prov = self.context.get_provider_by_id(provider_id=self.config.llm_id)
-        if not prov:
-            logger.error(f"未找到 LLM 模型：{self.config.llm_id}")
-            return
-
-        # 二级风控判断
-        timer = Timer()
-        llm_resp = await prov.text_chat(
-            prompt=f"{RC.llm_prompt}\n\n-----\n\n用户消息：\n{message_str}"
-        )
-        l2_coefficient = float(llm_resp.completion_text)
-        l2_diff = timer.end()
-
-        # 未触发风控
-        if l2_coefficient < self.config.l2_threshold:
+        # 二级风控判定
+        l2_discrimination, l2_time = self.get_l2_discrimination(message)
+        if not l2_discrimination:
             if self.config.is_dev:
                 logger.info(
                     "\n".join(
                         [
-                            "未触发风控",
+                            "未触发风控（由L2初步判别终止）",
                             "——————————",
-                            f"原文：{message_str}",
-                            f"  - l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
-                            f"  - l2风控系数：{l2_coefficient:.2f}, 模型耗时：{l2_diff:.4f}s",
+                            f"原文：{message}",
+                            f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
+                            f"  - 初步判别(L2)：非存疑, 模型耗时：{l2_time:.4f}s",
                             "——————————",
                         ]
                     )
                 )
             return
-        # 触发风控
-        else:
-            async for _result in RC.treat(event):
-                yield _result
+
+        # 直接使用二级风控
+        if not self.config.l3_llm_id:
+            async for _yield in self.treat(event):
+                yield _yield
             logger.info(
                 "\n".join(
                     [
-                        "触发风控！",
+                        "触发风控（由L2初步判别触发）",
                         "——————————",
-                        f"原文：{message_str}",
-                        f"  - l1风控系数：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
-                        f"  - l2风控系数：{l2_coefficient:.2f}, 模型耗时：{l2_diff:.4f}s",
+                        f"原文：{message}",
+                        f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
+                        f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
+                        "——————————",
+                    ]
+                )
+            )
+            return
+
+        # 三级风控分析
+        l3_coefficient, l3_time = self.get_l3_coefficient(message)
+        if l3_coefficient < self.config.l3_threshold:
+            if self.config.is_dev:
+                logger.info(
+                    "\n".join(
+                        [
+                            "未触发风控（由L3风控分析终止）",
+                            "——————————",
+                            f"原文：{message}",
+                            f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
+                            f"  - 风控分析系数(L3)：{l3_coefficient:.2f}, 模型耗时：{l3_time:.4f}s",
+                            "——————————",
+                        ]
+                    )
+                )
+            return
+
+        # 触发风控
+        else:
+            async for _yield in RC.treat(event):
+                yield _yield
+            logger.info(
+                "\n".join(
+                    [
+                        "触发风控（由L3风控分析触发）",
+                        "——————————",
+                        f"原文：{message}",
+                        f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
+                        f"  - 风控分析系数(L3)：{l3_coefficient:.2f}, 模型耗时：{l3_time:.4f}s",
                         "——————————",
                     ]
                 )
@@ -115,6 +142,19 @@ class _RC:
 
         self.sw_list = sorted(word_set, key=len, reverse=True)
         return self.sw_list
+
+    def load_prompt(self, path: str) -> str:
+        """
+        加载提示词
+
+        :param path: 提示词文件路径
+        :return: 提示词
+        """
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                return file.read()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"无法找到提示词文件：{path}")
 
     def get_l1_coefficient(self, message: str) -> tuple[float, float]:
         """
@@ -183,6 +223,55 @@ class _RC:
                 start = pos + 1
 
         return rc_list
+
+    async def get_l2_discrimination(self, message: str) -> tuple[bool, float]:
+        """
+        计算l2风控判别
+
+        :param message: 待处理的消息
+        :return: l2风控判别
+        """
+        timer = Timer()
+
+        # 初始化llm模型
+        prov = self.context.get_provider_by_id(provider_id=self.config.l2_llm_id)
+        if not prov:
+            raise ValueError(f"未找到 LLM 模型：{self.config.l2_llm_id}")
+
+        # 二级风控判断
+        llm_resp = await prov.text_chat(prompt=f"{self.l2_llm_prompt}{message}")
+        llm_resp = llm_resp.completion_text.upper()
+        if "Y" in llm_resp:
+            return True, timer.end()
+        elif "N" in llm_resp:
+            return False, timer.end()
+        else:
+            raise ValueError(f"意料外的风控分析结果：{llm_resp}")
+
+    async def get_l3_coefficient(self, message: str) -> tuple[float, float]:
+        """
+        计算l3风控系数
+
+        :param message: 待处理的消息
+        :return: l3风控系数
+        """
+        timer = Timer()
+
+        # 初始化llm模型
+        prov = self.context.get_provider_by_id(provider_id=self.config.l3_llm_id)
+        if not prov:
+            raise ValueError(f"未找到 LLM 模型：{self.config.l3_llm_id}")
+
+        # 二级风控判断
+        llm_resp = await prov.text_chat(prompt=f"{self.l3_llm_prompt}{message}")
+        llm_resp = llm_resp.completion_text
+        if self.config.llm_rc_rt in llm_resp:
+            return 1.0, timer.end()
+        try:
+            llm_resp = float(llm_resp)
+            return llm_resp, timer.end()
+        except Exception as e:
+            raise ValueError(f"意料外的风控分析结果：{llm_resp}\n错误信息：{e}")
 
     async def treat(self, event: AiocqhttpMessageEvent):
         """
