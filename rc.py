@@ -47,7 +47,7 @@ class _RC:
         if not self.config.llm_id:
             async for _yield in self.treat(event):
                 yield _yield
-            logger.info(
+            logger.warning(
                 f"触发风控 (敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s)"
             )
             return
@@ -74,7 +74,7 @@ class _RC:
         if not self.config.l3_llm_id:
             async for _yield in self.treat(event):
                 yield _yield
-            logger.info(
+            logger.warning(
                 "\n".join(
                     [
                         "触发风控（由L2初步判别触发）",
@@ -112,7 +112,7 @@ class _RC:
             async for _yield in self.treat(event):
                 yield _yield
             logger.info(
-                "\n".join(
+                "\n".warning(
                     [
                         "触发风控（由L3风控分析触发）",
                         "——————————",
