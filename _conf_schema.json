@@ -47,6 +47,12 @@
         "hint": "Bot 进行风控处理后发送的提示信息",
         "default": "检测到可能的违规内容，发言请遵守网络道德！"
     },
+    "display_error": {
+        "description": "报错时发送消息",
+        "type": "bool",
+        "hint": "报错时 Bot 发送报错信息",
+        "default": false
+    },
     "dev": {
         "description": "开发者模式",
         "type": "bool",

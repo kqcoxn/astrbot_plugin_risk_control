@@ -1,4 +1,5 @@
 from typing import List
+from pathlib import Path
 
 
 from astrbot.api import logger
@@ -8,12 +9,13 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 
 from .config import Config
-from utils import Timer
+from .utils import Timer
 
 
 class _RC:
     def __init__(self):
         # 加载违禁词
+        self.sw_list = []
         self.load_stop_words("keyword/keywords.txt")
         # 加载提示词
         self.l2_llm_prompt = self.load_prompt("prompts/l2.txt")
@@ -97,6 +99,7 @@ class _RC:
                             "——————————",
                             f"原文：{message}",
                             f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
+                            f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
                             f"  - 风控分析系数(L3)：{l3_coefficient:.2f}, 模型耗时：{l3_time:.4f}s",
                             "——————————",
                         ]
@@ -115,6 +118,7 @@ class _RC:
                         "——————————",
                         f"原文：{message}",
                         f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
+                        f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
                         f"  - 风控分析系数(L3)：{l3_coefficient:.2f}, 模型耗时：{l3_time:.4f}s",
                         "——————————",
                     ]
@@ -122,7 +126,7 @@ class _RC:
             )
             return
 
-    def load_stop_words(self, path: str) -> list[str]:
+    def load_stop_words(self, path: str | None = None) -> list[str]:
         """
         加载违禁词列表
 
@@ -132,7 +136,13 @@ class _RC:
         word_set = self.sw_list or []
         word_set = set(word_set)
         try:
-            with open(path, "r", encoding="utf-8") as file:
+            # 兼容相对路径：相对当前文件目录
+            if not path:
+                path = "keyword/keywords.txt"
+            p = Path(path)
+            if not p.is_absolute():
+                p = Path(__file__).resolve().parent / p
+            with open(p, "r", encoding="utf-8") as file:
                 for line in file:
                     line = line.strip().lower()
                     if line:
@@ -151,7 +161,10 @@ class _RC:
         :return: 提示词
         """
         try:
-            with open(path, "r", encoding="utf-8") as file:
+            p = Path(path)
+            if not p.is_absolute():
+                p = Path(__file__).resolve().parent / p
+            with open(p, "r", encoding="utf-8") as file:
                 return file.read()
         except FileNotFoundError:
             raise FileNotFoundError(f"无法找到提示词文件：{path}")

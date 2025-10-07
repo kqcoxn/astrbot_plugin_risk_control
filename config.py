@@ -14,6 +14,7 @@ class Config:
     l3_threshold: float
     llm_rc_rt: str
     alert: str
+    is_display_error: bool
     is_dev: bool
 
     @property
@@ -43,5 +44,6 @@ def parse_config(config: Dict) -> Config:
         l3_threshold=config.get("l3_threshold", 0.5),
         llm_rc_rt=config.get("llm_rc_rt", "contain inappropriate content"),
         alert=config.get("alert", "检测到可能的违规内容，发言请遵守网络道德！"),
+        is_display_error=config.get("display_error", False),
         is_dev=config.get("dev", False),
     )

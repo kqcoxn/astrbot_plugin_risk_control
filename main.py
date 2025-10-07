@@ -49,4 +49,5 @@ class RiskControl(Star):
 
         except Exception as e:
             logger.error(e)
-            yield event.plain_result("发生错误: " + str(e))
+            if self.config.is_display_error:
+                yield event.plain_result("发生错误: " + str(e))
