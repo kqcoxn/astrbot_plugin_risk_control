@@ -1,0 +1,47 @@
+from typing import Dict, List
+from dataclasses import dataclass
+
+
+@dataclass
+class Config:
+    """配置类"""
+
+    is_enable: bool
+    white_groups: List[int]
+    l1_threshold: float
+    l2_llm_id: str
+    l3_llm_id: str
+    l3_threshold: float
+    llm_rc_rt: str
+    alert: str
+    is_dev: bool
+
+    @property
+    def llm_id(self) -> str:
+        """获取当前使用的LLM ID，优先使用l2_llm_id"""
+        return self.l2_llm_id or self.l3_llm_id
+
+    @property
+    def l2_threshold(self) -> float:
+        """获取l2阈值，使用l3_threshold作为l2的阈值"""
+        return self.l3_threshold
+
+
+def parse_config(config: Dict) -> Config:
+    """
+    处理配置文件
+
+    :param config: 配置文件
+    :return: 处理后的配置对象
+    """
+    return Config(
+        is_enable=config.get("enable", False),
+        white_groups=config.get("white_groups", []),
+        l1_threshold=config.get("l1_threshold", 0.001),
+        l2_llm_id=config.get("l2_llm_id", ""),
+        l3_llm_id=config.get("l3_llm_id", ""),
+        l3_threshold=config.get("l3_threshold", 0.5),
+        llm_rc_rt=config.get("llm_rc_rt", "contain inappropriate content"),
+        alert=config.get("alert", "检测到可能的违规内容，发言请遵守网络道德！"),
+        is_dev=config.get("dev", False),
+    )

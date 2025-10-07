@@ -1,4 +1,10 @@
 {
+    "enable": {
+        "description": "启用风控分析",
+        "type": "bool",
+        "hint": "请在配置好下列配置后再启用，否则可能导致炸群",
+        "default": false
+    },
     "white_groups": {
         "description": "白名单",
         "type": "list",
@@ -6,22 +12,40 @@
         "default": []
     },
     "l1_threshold": {
-        "description": "二级分析阈值",
+        "description": "大模型判别阈值",
         "type": "float",
-        "hint": "进行二级分析所需的最小一级分析（敏感词库）系数 (0~1)",
-        "default": 0.1
+        "hint": "进行二级判别所需的最小一级分析（敏感词库）系数 (0~1)（若开启 LLM 分析，这里建议设置一个很小的数，即检测到存在敏感词则送审，防止稀释欺骗，设为 0 表示全部送审）",
+        "default": 0.001
     },
-    "llm_id": {
-        "description": "二级分析模型",
+    "l2_llm_id": {
+        "description": "初步判别模型",
         "type": "string",
-        "hint": "用于二级风控分析的大模型 ID，留空表示不进行二级分析，直接使用是否超过阈值作为风控决策",
+        "hint": "用于初步判别的大模型 ID，留空表示直接进行风控分析或不进行 LLM 分析，详见文档",
         "default": ""
     },
-    "l2_threshold": {
+    "l3_llm_id": {
+        "description": "风控分析模型",
+        "type": "string",
+        "hint": "用于风控分析的大模型 ID，留空表示直接使用初步判别结果或不进行 LLM 分析，详见文档",
+        "default": ""
+    },
+    "l3_threshold": {
         "description": "风控阈值",
         "type": "float",
-        "hint": "进行风控所需的最小二级分析（大模型）系数 (0~1)",
+        "hint": "进行风控所需的最风控分析阈值 (0~1)",
         "default": 0.5
+    },
+    "llm_rc_rt": {
+        "description": "大模型风控返回",
+        "type": "string",
+        "hint": "国产大模型自身检测到敏感词后会返回 Bad Request，若检测到相关字段则直接判别为需要风控",
+        "default": "contain inappropriate content"
+    },
+    "alert": {
+        "description": "风控后提示",
+        "type": "string",
+        "hint": "Bot 进行风控处理后发送的提示信息",
+        "default": "检测到可能的违规内容，发言请遵守网络道德！"
     },
     "dev": {
         "description": "开发者模式",
