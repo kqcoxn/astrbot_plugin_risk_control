@@ -12,6 +12,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 
 from .config import Config
 from .utils import Timer
+from .bc import BotController
 
 
 @dataclass
@@ -56,8 +57,9 @@ class _RC:
 
         # 直接使用一级风控
         if not self.config.llm_id:
-            async for _yield in self.treat(event):
-                yield _yield
+            yield event.plain_result(self.config.alert)
+            await BotController.withdraw(event)
+            await BotController.ban(event, self.config.ban_time)
             logger.warning(
                 f"触发风控 (敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s)"
             )
@@ -83,8 +85,9 @@ class _RC:
 
         # 直接使用二级风控
         if not self.config.l3_llm_id:
-            async for _yield in self.treat(event):
-                yield _yield
+            yield event.plain_result(self.config.alert)
+            await BotController.withdraw(event)
+            await BotController.ban(event, self.config.ban_time)
             logger.warning(
                 "\n".join(
                     [
@@ -101,31 +104,46 @@ class _RC:
 
         # 三级风控分析
         l3_result = await self.get_l3_result(message)
-        if l3_result.coefficient < self.config.l3_threshold:
-            if self.config.is_dev:
-                logger.info(
-                    "\n".join(
-                        [
-                            "未触发风控（由L3风控分析终止）",
-                            "——————————",
-                            f"原文：{message}",
-                            f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
-                            f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
-                            f"  - 风控分析系数(L3)：{l3_result.coefficient:.2f}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
-                            "——————————",
-                        ]
-                    )
-                )
-            return
+        flag = False
 
-        # 触发风控
-        else:
-            async for _yield in self.treat(event, l3_result.reason):
-                yield _yield
+        # 提示阈值
+        if l3_result.coefficient >= self.config.l3_threshold_alert:
+            yield event.plain_result(self.config.alert)
+            flag = True
+
+        # 撤回阈值
+        if l3_result.coefficient >= self.config.l3_threshold_withdraw:
+            await BotController.withdraw(event)
+            flag = True
+
+        # 禁言阈值
+        if l3_result.coefficient >= self.config.l3_threshold_ban:
+            await BotController.ban(event, self.config.ban_time)
+            flag = True
+
+        # 风控日志
+        if flag:
             logger.warning(
                 "\n".join(
                     [
                         "触发风控（由L3风控分析触发）",
+                        "——————————",
+                        f"原文：{message}",
+                        f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
+                        f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
+                        f"  - 风控分析系数(L3)：{l3_result.coefficient:.2f}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
+                        "——————————",
+                    ]
+                )
+            )
+            return
+
+        # 未触发三级风控
+        if self.config.is_dev:
+            logger.info(
+                "\n".join(
+                    [
+                        "未触发风控（由L3风控分析终止）",
                         "——————————",
                         f"原文：{message}",
                         f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
@@ -296,40 +314,6 @@ class _RC:
             return L3Result(llm_resp.get("score"), llm_resp.get("reason"), timer.end())
         except Exception as e:
             raise ValueError(f"意料外的风控分析结果：{llm_resp}\n错误信息：{e}")
-
-    async def treat(self, event: AiocqhttpMessageEvent, reason: str = None):
-        """
-        风控处理
-
-        :param event: 消息事件
-        :param reason: 风险原因
-        """
-        client = event.bot
-        group_id = int(event.get_group_id())
-        user_id = int(event.get_sender_id())
-        self_id = int(event.get_self_id())
-        message_id = int(event.message_obj.message_id)
-
-        # 撤回
-        await client.delete_msg(
-            message_id=message_id,
-            self_id=self_id,
-        )
-
-        # 禁言
-        # await client.set_group_ban(
-        #     group_id=group_id,
-        #     user_id=user_id,
-        #     duration=10 * 60,
-        #     self_id=self_id,
-        # )
-
-        # 提示
-        alert = self.config.alert
-        if reason:
-            alert += f"\n原因：{reason}"
-        yield event.plain_result(alert)
-        event.stop_event()
 
 
 RC = _RC()

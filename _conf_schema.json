@@ -29,23 +29,41 @@
         "hint": "用于风控分析的大模型 ID，建议使用思考模式，留空表示直接使用初步判别结果或不进行 LLM 分析，详见文档",
         "default": ""
     },
-    "l3_threshold": {
-        "description": "风控阈值",
-        "type": "float",
-        "hint": "进行风控所需的最风控分析阈值 (0~1)",
-        "default": 0.4
-    },
     "llm_rc_rt": {
         "description": "大模型风控标识",
         "type": "string",
         "hint": "国产大模型自身检测到敏感词后会返回 Bad Request，若检测到相关字段则直接判别为需要风控",
         "default": "contain inappropriate content"
     },
+    "l3_threshold_alert": {
+        "description": "提醒阈值",
+        "type": "float",
+        "hint": "进行提醒风控所需的最风控分析阈值 (0~1)",
+        "default": 0.4
+    },
     "alert": {
-        "description": "风控后提示",
+        "description": "提醒信息",
         "type": "string",
-        "hint": "Bot 进行风控处理后发送的提示信息",
+        "hint": "Bot 进行提醒风控处理时发送的提示信息",
         "default": "检测到可能的违规内容，发言请遵守网络道德！"
+    },
+    "l3_threshold_withdraw": {
+        "description": "撤回阈值",
+        "type": "float",
+        "hint": "进行撤回风控所需的最风控分析阈值 (0~1)",
+        "default": 0.5
+    },
+    "l3_threshold_ban": {
+        "description": "禁言阈值",
+        "type": "float",
+        "hint": "进行禁言风控所需的最风控分析阈值 (0~1)",
+        "default": 0.6
+    },
+    "ban_time": {
+        "description": "禁言时长",
+        "type": "int",
+        "hint": "Bot 进行禁言风控处理时的禁言时长（分钟）",
+        "default": 10
     },
     "display_error": {
         "description": "报错时发送消息",

@@ -11,9 +11,12 @@ class Config:
     l1_threshold: float
     l2_llm_id: str
     l3_llm_id: str
-    l3_threshold: float
-    llm_rc_rt: str
+    l3_threshold_alert: float
     alert: str
+    l3_threshold_withdraw: float
+    l3_threshold_ban: float
+    ban_time: int
+    llm_rc_rt: str
     is_display_error: bool
     is_dev: bool
 
@@ -26,6 +29,15 @@ class Config:
     def l2_threshold(self) -> float:
         """获取l2阈值，使用l3_threshold作为l2的阈值"""
         return self.l3_threshold
+
+    @property
+    def l3_threshold(self) -> float:
+        """获取l3阈值，使用最小值"""
+        return min(
+            self.l3_threshold_alert,
+            self.l3_threshold_withdraw,
+            self.l3_threshold_ban,
+        )
 
 
 def parse_config(config: Dict) -> Config:
@@ -41,9 +53,12 @@ def parse_config(config: Dict) -> Config:
         l1_threshold=config.get("l1_threshold", 0.001),
         l2_llm_id=config.get("l2_llm_id", ""),
         l3_llm_id=config.get("l3_llm_id", ""),
-        l3_threshold=config.get("l3_threshold", 0.5),
-        llm_rc_rt=config.get("llm_rc_rt", "contain inappropriate content"),
+        l3_threshold_alert=config.get("l3_threshold_alert", 0.4),
         alert=config.get("alert", "检测到可能的违规内容，发言请遵守网络道德！"),
+        l3_threshold_withdraw=config.get("l3_threshold_withdraw", 0.5),
+        l3_threshold_ban=config.get("l3_threshold_ban", 0.6),
+        ban_time=config.get("ban_time", 10),
+        llm_rc_rt=config.get("llm_rc_rt", "contain inappropriate content"),
         is_display_error=config.get("display_error", False),
         is_dev=config.get("dev", False),
     )
