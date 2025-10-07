@@ -111,8 +111,8 @@ class _RC:
         else:
             async for _yield in self.treat(event):
                 yield _yield
-            logger.info(
-                "\n".warning(
+            logger.warning(
+                "\n".join(
                     [
                         "触发风控（由L3风控分析触发）",
                         "——————————",
