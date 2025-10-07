@@ -53,7 +53,7 @@ class _RC:
             return
 
         # 二级风控判定
-        l2_discrimination, l2_time = self.get_l2_discrimination(message)
+        l2_discrimination, l2_time = await self.get_l2_discrimination(message)
         if not l2_discrimination:
             if self.config.is_dev:
                 logger.info(
@@ -89,7 +89,7 @@ class _RC:
             return
 
         # 三级风控分析
-        l3_coefficient, l3_time = self.get_l3_coefficient(message)
+        l3_coefficient, l3_time = await self.get_l3_coefficient(message)
         if l3_coefficient < self.config.l3_threshold:
             if self.config.is_dev:
                 logger.info(
@@ -109,7 +109,7 @@ class _RC:
 
         # 触发风控
         else:
-            async for _yield in RC.treat(event):
+            async for _yield in self.treat(event):
                 yield _yield
             logger.info(
                 "\n".join(
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     ]
 
     for test in test_cases:
-        coefficient = RC.get_l1_coefficient(test)
+        coefficient, _elapsed = RC.get_l1_coefficient(test)
         rc_list = RC.get_rc_list(test)
         print(f"文本: '{test}'")
         print(f"违禁词: {rc_list}")
