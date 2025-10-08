@@ -47,7 +47,11 @@ class _RC:
             return
 
         # 计算大模型判别系数
-        l1_coefficient, l1_time = self.get_l1_coefficient(message)
+        l1_coefficient, l1_time = (
+            (1.0, 0.0)
+            if self.config.l1_threshold <= 0
+            else self.get_l1_coefficient(message)
+        )
         if l1_coefficient < self.config.l1_threshold:
             if self.config.is_dev:
                 logger.info(
@@ -108,7 +112,9 @@ class _RC:
 
         # 提示阈值
         if l3_result.grade >= self.config.l3_threshold_alert:
-            yield event.plain_result(f"{self.config.alert_message}\n风控理由：{l3_result.reason}")
+            yield event.plain_result(
+                f"{self.config.alert_message}\n风控理由：{l3_result.reason}"
+            )
             flag = True
 
         # 撤回阈值
