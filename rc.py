@@ -19,7 +19,7 @@ from .bc import BotController
 class L3Result:
     """L3风控分析结果"""
 
-    coefficient: float
+    grade: int
     reason: str
     time: float
 
@@ -57,7 +57,7 @@ class _RC:
 
         # 直接使用一级风控
         if not self.config.llm_id:
-            yield event.plain_result(self.config.alert)
+            yield event.plain_result(self.config.alert_message)
             await BotController.withdraw(event)
             await BotController.ban(event, self.config.ban_time)
             logger.warning(
@@ -85,7 +85,7 @@ class _RC:
 
         # 直接使用二级风控
         if not self.config.l3_llm_id:
-            yield event.plain_result(self.config.alert)
+            yield event.plain_result(self.config.alert_message)
             await BotController.withdraw(event)
             await BotController.ban(event, self.config.ban_time)
             logger.warning(
@@ -107,17 +107,17 @@ class _RC:
         flag = False
 
         # 提示阈值
-        if l3_result.coefficient >= self.config.l3_threshold_alert:
-            yield event.plain_result(self.config.alert)
+        if l3_result.grade >= self.config.l3_threshold_alert:
+            yield event.plain_result(f"{self.config.alert_message}\n风控理由：{l3_result.reason}")
             flag = True
 
         # 撤回阈值
-        if l3_result.coefficient >= self.config.l3_threshold_withdraw:
+        if l3_result.grade >= self.config.l3_threshold_withdraw:
             await BotController.withdraw(event)
             flag = True
 
         # 禁言阈值
-        if l3_result.coefficient >= self.config.l3_threshold_ban:
+        if l3_result.grade >= self.config.l3_threshold_ban:
             await BotController.ban(event, self.config.ban_time)
             flag = True
 
@@ -131,7 +131,7 @@ class _RC:
                         f"原文：{message}",
                         f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
                         f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
-                        f"  - 风控分析系数(L3)：{l3_result.coefficient:.2f}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
+                        f"  - 风控分析系数(L3)：{l3_result.grade}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
                         "——————————",
                     ]
                 )
@@ -148,7 +148,7 @@ class _RC:
                         f"原文：{message}",
                         f"  - 敏感词库分析系数(L1)：{l1_coefficient:.2f}, 计算耗时：{l1_time:.4f}s",
                         f"  - 初步判别(L2)：存疑, 模型耗时：{l2_time:.4f}s",
-                        f"  - 风控分析系数(L3)：{l3_result.coefficient:.2f}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
+                        f"  - 风控分析系数(L3)：{l3_result.grade}（{l3_result.reason}）, 模型耗时：{l3_result.time:.4f}s",
                         "——————————",
                     ]
                 )
@@ -308,31 +308,18 @@ class _RC:
         llm_resp = await prov.text_chat(prompt=f"{self.l3_llm_prompt}{message}")
         llm_resp = llm_resp.completion_text
         if self.config.llm_rc_rt in llm_resp:
-            return L3Result(1.0, "含有敏感言论", timer.end())
+            return L3Result(
+                self.config.l3_threshold_withdraw,
+                "大模型推理至自带的风控范畴",
+                timer.end(),
+            )
         try:
             llm_resp = json.loads(llm_resp)
-            return L3Result(llm_resp.get("score"), llm_resp.get("reason"), timer.end())
+            return L3Result(
+                int(llm_resp.get("grade")), llm_resp.get("reason"), timer.end()
+            )
         except Exception as e:
             raise ValueError(f"意料外的风控分析结果：{llm_resp}\n错误信息：{e}")
 
 
 RC = _RC()
-
-if __name__ == "__main__":
-    # 测试示例
-    test_cases = [
-        "妈",  # 单个词
-        "你妈",  # 包含重叠词
-        "你妈妈",  # 包含多个重叠词
-        "正常文本",  # 无违禁词
-        "你妈真是个好人，妈妈我爱你",  # 多个违禁词
-        "不要理解傻逼和串子以及真正的孝子",  # 模棱两可
-    ]
-
-    for test in test_cases:
-        coefficient, _elapsed = RC.get_l1_coefficient(test)
-        rc_list = RC.get_rc_list(test)
-        print(f"文本: '{test}'")
-        print(f"违禁词: {rc_list}")
-        print(f"系数: {coefficient:.3f}")
-        print("-" * 50)

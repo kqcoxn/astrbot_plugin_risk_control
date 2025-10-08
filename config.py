@@ -11,10 +11,10 @@ class Config:
     l1_threshold: float
     l2_llm_id: str
     l3_llm_id: str
-    l3_threshold_alert: float
-    alert: str
-    l3_threshold_withdraw: float
-    l3_threshold_ban: float
+    l3_threshold_alert: int
+    alert_message: str
+    l3_threshold_withdraw: int
+    l3_threshold_ban: int
     ban_time: int
     llm_rc_rt: str
     is_display_error: bool
@@ -50,13 +50,15 @@ def parse_config(config: Dict) -> Config:
     return Config(
         is_enable=config.get("enable", False),
         white_groups=config.get("white_groups", []),
-        l1_threshold=config.get("l1_threshold", 0.001),
+        l1_threshold=config.get("l1_threshold", 0),
         l2_llm_id=config.get("l2_llm_id", ""),
         l3_llm_id=config.get("l3_llm_id", ""),
-        l3_threshold_alert=config.get("l3_threshold_alert", 0.4),
-        alert=config.get("alert", "检测到可能的违规内容，发言请遵守网络道德！"),
-        l3_threshold_withdraw=config.get("l3_threshold_withdraw", 0.5),
-        l3_threshold_ban=config.get("l3_threshold_ban", 0.6),
+        l3_threshold_alert=config.get("l3_threshold_alert", 7),
+        alert_message=config.get(
+            "alert_message", "检测到可能的违规内容，发言请遵守网络道德！"
+        ),
+        l3_threshold_withdraw=config.get("l3_threshold_withdraw", 7),
+        l3_threshold_ban=config.get("l3_threshold_ban", 8),
         ban_time=config.get("ban_time", 10),
         llm_rc_rt=config.get("llm_rc_rt", "contain inappropriate content"),
         is_display_error=config.get("display_error", False),
