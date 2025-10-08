@@ -9,6 +9,8 @@ from astrbot.api.star import Context
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
+import astrbot.api.message_components as Comp
+from sqlalchemy.sql.coercions import expect
 
 from .config import Config
 from .utils import Timer
@@ -21,6 +23,7 @@ class L3Result:
 
     grade: int
     reason: str
+    keywords: list[str]
     time: float
 
 
@@ -109,22 +112,42 @@ class _RC:
         # 三级风控分析
         l3_result = await self.get_l3_result(message)
         flag = False
-
-        # 提示阈值
-        if l3_result.grade >= self.config.l3_threshold_alert:
-            yield event.plain_result(
-                f"{self.config.alert_message}\n风控理由：{l3_result.reason}"
-            )
-            flag = True
+        is_withdraw = False
+        is_ban = False
 
         # 撤回阈值
         if l3_result.grade >= self.config.l3_threshold_withdraw:
             await BotController.withdraw(event)
-            flag = True
+            flag = is_withdraw = True
 
         # 禁言阈值
         if l3_result.grade >= self.config.l3_threshold_ban:
             await BotController.ban(event, self.config.ban_time)
+            flag = is_ban = True
+
+        # 提示阈值
+        if l3_result.grade >= self.config.l3_threshold_alert:
+            res = f"{self.config.alert_message}\n风控理由：{l3_result.reason}"
+            # 原文打码
+            try:
+                if l3_result.keywords:
+                    masked_message = "\n原文：" + message
+                    for keyword in l3_result.keywords:
+                        masked_message = masked_message.replace(
+                            keyword, "*" * len(keyword)
+                        )
+                    if len(masked_message) > 20:
+                        masked_message = masked_message[:20] + "..."
+                    res += masked_message
+            except Exception as e:
+                pass
+            # 风控方式
+            res += "\n风控方式：提醒"
+            if is_withdraw:
+                res += "、撤回"
+            if is_ban:
+                res += f"、封禁({self.config.ban_time}min)"
+            yield event.plain_result(res)
             flag = True
 
         # 风控日志
@@ -315,14 +338,17 @@ class _RC:
         llm_resp = llm_resp.completion_text
         if self.config.llm_rc_rt in llm_resp:
             return L3Result(
-                self.config.l3_threshold_withdraw,
-                "大模型推理至自带的风控范畴",
-                timer.end(),
+                grade=self.config.l3_threshold_withdraw,
+                reason="大模型推理至自带的风控范畴",
+                time=timer.end(),
             )
         try:
             llm_resp = json.loads(llm_resp)
             return L3Result(
-                int(llm_resp.get("grade")), llm_resp.get("reason"), timer.end()
+                grade=int(llm_resp.get("grade")),
+                reason=llm_resp.get("reason"),
+                keywords=llm_resp.get("keywords"),
+                time=timer.end(),
             )
         except Exception as e:
             raise ValueError(f"意料外的风控分析结果：{llm_resp}\n错误信息：{e}")
