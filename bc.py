@@ -40,3 +40,39 @@ class BotController:
             duration=time * 60,
             self_id=self_id,
         )
+
+    @staticmethod
+    async def get_hist_messages(event: AiocqhttpMessageEvent, count=10) -> list[str]:
+        """
+        获取群聊消息记录
+
+        :param event: 消息事件
+        :param count: 获取数量
+        """
+
+        bot_instance = event.bot
+        group_id = int(event.get_group_id())
+        payloads = {
+            "group_id": group_id,
+            "message_seq": 0,
+            "count": count,
+            "reverseOrder": False,
+        }
+        result = await bot_instance.api.call_action("get_group_msg_history", **payloads)
+        round_messages = result.get("messages", [])
+
+        messages = []
+        self_id = int(event.get_self_id())
+        sender_dict = {}
+        sender_mask = 1
+        for msg in round_messages:
+            sender_id = str(msg.get("sender", {}).get("user_id", ""))
+            if sender_id != self_id:
+                if sender_id not in sender_dict:
+                    sender_dict[sender_id] = sender_mask
+                    sender_mask += 1
+                messages.append(
+                    f"用户{sender_dict[sender_id]}：{msg.get('raw_message', '')}"
+                )
+
+        return messages

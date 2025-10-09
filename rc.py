@@ -9,11 +9,9 @@ from astrbot.api.star import Context
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
-import astrbot.api.message_components as Comp
-from sqlalchemy.sql.coercions import expect
 
 from .config import Config
-from .utils import Timer
+from .utils import Timer, PromptTool
 from .bc import BotController
 
 
@@ -32,9 +30,17 @@ class _RC:
         # 加载违禁词
         self.sw_list = []
         self.load_stop_words("keyword/keywords.txt")
-        # 加载提示词
-        self.l2_llm_prompt = self.load_prompt("prompts/l2.txt")
-        self.l3_llm_prompt = self.load_prompt("prompts/l3.txt")
+
+        # 加载L2提示词
+        l2_llm_prompt = PromptTool.load_prompt("l2")
+        default_wl = PromptTool.load_prompt("default_wl")
+        l2_llm_prompt = PromptTool.fill(l2_llm_prompt, "default_wl", default_wl)
+        self.l2_llm_prompt = l2_llm_prompt
+
+        # 加载L3提示词
+        l3_llm_prompt = PromptTool.load_prompt("l3")
+        l3_llm_prompt = PromptTool.fill(l3_llm_prompt, "default_wl", default_wl)
+        self.l3_llm_prompt = l3_llm_prompt
 
     def set_bot_params(self, context: Context = None, config: Config = None):
         """Bot 配置"""
@@ -110,7 +116,7 @@ class _RC:
             return
 
         # 三级风控分析
-        l3_result = await self.get_l3_result(message)
+        l3_result = await self.get_l3_result(event, message)
         flag = False
         is_withdraw = False
         is_ban = False
@@ -211,22 +217,6 @@ class _RC:
         self.sw_list = sorted(word_set, key=len, reverse=True)
         return self.sw_list
 
-    def load_prompt(self, path: str) -> str:
-        """
-        加载提示词
-
-        :param path: 提示词文件路径
-        :return: 提示词
-        """
-        try:
-            p = Path(path)
-            if not p.is_absolute():
-                p = Path(__file__).resolve().parent / p
-            with open(p, "r", encoding="utf-8") as file:
-                return file.read()
-        except FileNotFoundError:
-            raise FileNotFoundError(f"无法找到提示词文件：{path}")
-
     def get_l1_coefficient(self, message: str) -> tuple[float, float]:
         """
         计算l1风控系数
@@ -319,7 +309,9 @@ class _RC:
         else:
             raise ValueError(f"意料外的风控分析结果：{llm_resp}")
 
-    async def get_l3_result(self, message: str) -> L3Result:
+    async def get_l3_result(
+        self, event: AiocqhttpMessageEvent, message: str
+    ) -> L3Result:
         """
         计算l3风控系数
 
@@ -333,13 +325,18 @@ class _RC:
         if not prov:
             raise ValueError(f"未找到 LLM 模型：{self.config.l3_llm_id}")
 
-        # 二级风控判断
-        llm_resp = await prov.text_chat(prompt=f"{self.l3_llm_prompt}{message}")
+        # 风控判断
+        context = await BotController.get_hist_messages(event)
+        context_text = "\n".join(context)
+        prompt = PromptTool.fill(self.l3_llm_prompt, "context", context_text)
+        prompt = f"{prompt}{message}"
+        llm_resp = await prov.text_chat(prompt=prompt)
         llm_resp = llm_resp.completion_text
         if self.config.llm_rc_rt in llm_resp:
             return L3Result(
                 grade=self.config.l3_threshold_withdraw,
                 reason="大模型推理至自带的风控范畴",
+                keywords=[],
                 time=timer.end(),
             )
         try:
@@ -347,7 +344,7 @@ class _RC:
             return L3Result(
                 grade=int(llm_resp.get("grade")),
                 reason=llm_resp.get("reason"),
-                keywords=llm_resp.get("keywords"),
+                keywords=llm_resp.get("keywords", []),
                 time=timer.end(),
             )
         except Exception as e:
