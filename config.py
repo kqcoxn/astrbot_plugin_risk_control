@@ -20,6 +20,7 @@ class Config:
     ban_time: int
     llm_rc_rt: str
     is_display_error: bool
+    log_when_gen_l3: bool
     is_dev: bool
 
     @property
@@ -66,5 +67,6 @@ def parse_config(config: Dict) -> Config:
         ban_time=config.get("ban_time", 10),
         llm_rc_rt=config.get("llm_rc_rt", "contain inappropriate content"),
         is_display_error=config.get("display_error", False),
+        log_when_gen_l3=config.get("log_when_gen_l3", False),
         is_dev=config.get("dev", False),
     )

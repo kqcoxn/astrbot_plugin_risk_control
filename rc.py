@@ -183,7 +183,7 @@ class _RC:
             return
 
         # 未触发三级风控
-        if self.config.is_dev:
+        if self.config.log_when_gen_l3 or self.config.is_dev:
             logger.info(
                 "\n".join(
                     [

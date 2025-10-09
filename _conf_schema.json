@@ -83,6 +83,12 @@
         "hint": "报错时 Bot 发送报错信息",
         "default": false
     },
+    "log_when_gen_l3": {
+        "description": "调用大模型时输出日志",
+        "type": "bool",
+        "hint": "调用大模型时输出日志以观察每条消息的评级",
+        "default": false
+    },
     "dev": {
         "description": "开发者模式",
         "type": "bool",
