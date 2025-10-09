@@ -35,6 +35,7 @@ class _RC:
         l2_llm_prompt = PromptTool.load_prompt("l2")
         default_wl = PromptTool.load_prompt("default_wl")
         l2_llm_prompt = PromptTool.fill(l2_llm_prompt, "default_wl", default_wl)
+
         self.l2_llm_prompt = l2_llm_prompt
 
         # 加载L3提示词
@@ -48,6 +49,14 @@ class _RC:
             self.context = context
         if config is not None:
             self.config = config
+
+        topic = (
+            PromptTool.load_prompt("default_topic")
+            if self.config.group_description == ""
+            else self.config.group_description
+        )
+        self.l2_llm_prompt = PromptTool.fill(self.l2_llm_prompt, "topic", topic)
+        self.l3_llm_prompt = PromptTool.fill(self.l3_llm_prompt, "topic", topic)
 
     async def handle(self, event: AiocqhttpMessageEvent):
         # 获取消息

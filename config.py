@@ -9,6 +9,7 @@ class Config:
     is_enable: bool
     white_groups: List[int]
     l1_threshold: float
+    group_description: str
     l2_llm_id: str
     l3_llm_id: str
     context_num: int
@@ -52,6 +53,7 @@ def parse_config(config: Dict) -> Config:
         is_enable=config.get("enable", False),
         white_groups=config.get("white_groups", []),
         l1_threshold=config.get("l1_threshold", 0),
+        group_description=config.get("group_description", ""),
         l2_llm_id=config.get("l2_llm_id", ""),
         l3_llm_id=config.get("l3_llm_id", ""),
         context_num=config.get("context_num", 10),
