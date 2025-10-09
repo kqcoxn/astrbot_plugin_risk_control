@@ -11,6 +11,7 @@ class Config:
     l1_threshold: float
     l2_llm_id: str
     l3_llm_id: str
+    context_num: int
     l3_threshold_alert: int
     alert_message: str
     l3_threshold_withdraw: int
@@ -53,6 +54,7 @@ def parse_config(config: Dict) -> Config:
         l1_threshold=config.get("l1_threshold", 0),
         l2_llm_id=config.get("l2_llm_id", ""),
         l3_llm_id=config.get("l3_llm_id", ""),
+        context_num=config.get("context_num", 10),
         l3_threshold_alert=config.get("l3_threshold_alert", 7),
         alert_message=config.get(
             "alert_message", "检测到可能的违规内容，发言请遵守网络道德！"

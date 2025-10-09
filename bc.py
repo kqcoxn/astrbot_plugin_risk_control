@@ -30,6 +30,8 @@ class BotController:
         :param event: 消息事件
         :param time: 禁言时长 (minutes)
         """
+        if time <= 0:
+            return
         client = event.bot
         group_id = int(event.get_group_id())
         user_id = int(event.get_sender_id())

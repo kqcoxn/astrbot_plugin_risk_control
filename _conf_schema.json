@@ -20,19 +20,25 @@
     "l2_llm_id": {
         "description": "初步判别模型",
         "type": "string",
-        "hint": "用于初步判别的大模型 ID，建议使用轻量级模型，留空表示直接进行风控分析或不进行 LLM 分析，详见文档",
+        "hint": "用于初步判别的大模型 ID，建议使用轻量级模型，留空表示直接使用大模型判别阈值作为风控结果",
         "default": ""
     },
     "l3_llm_id": {
         "description": "风控分析模型",
         "type": "string",
-        "hint": "用于风控分析的大模型 ID，建议使用思考模式，留空表示直接使用初步判别结果或不进行 LLM 分析，详见文档",
+        "hint": "用于风控分析的大模型 ID，建议使用思考模式，留空表示直接使用初步判别结果作为风控结果",
         "default": ""
+    },
+    "context_num": {
+        "description": "上下文检测数量",
+        "type": "int",
+        "hint": "用于风控分析的上下文消息数，适当数量可以提升环境语义判断效果，建议设置为5~20",
+        "default": 10
     },
     "llm_rc_rt": {
         "description": "大模型风控标识",
         "type": "string",
-        "hint": "国产大模型自身检测到敏感词后会返回 Bad Request，若检测到相关字段则直接判别为需要风控",
+        "hint": "国产大模型自身检测到敏感词后会返回 Bad Request，若检测到相关字段则直接判别为需要撤回等级",
         "default": "contain inappropriate content"
     },
     "l3_threshold_alert": {
@@ -43,9 +49,9 @@
     },
     "alert_message": {
         "description": "提醒信息",
-        "type": "string",
+        "type": "text",
         "hint": "Bot 进行提醒风控处理时发送的提示信息",
-        "default": "检测到可能的违规内容，发言请遵守网络道德！"
+        "default": "检测到可能的违规内容，发言请遵守网络道德喵！"
     },
     "l3_threshold_withdraw": {
         "description": "撤回阈值",

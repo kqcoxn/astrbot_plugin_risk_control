@@ -326,7 +326,7 @@ class _RC:
             raise ValueError(f"未找到 LLM 模型：{self.config.l3_llm_id}")
 
         # 风控判断
-        context = await BotController.get_hist_messages(event)
+        context = await BotController.get_hist_messages(event, self.config.context_num)
         context_text = "\n".join(context)
         prompt = PromptTool.fill(self.l3_llm_prompt, "context", context_text)
         prompt = f"{prompt}{message}"
